@@ -68,7 +68,7 @@ export default async function MyTasksPage() {
                       <Link href={`/projects/${tag.project_id}`} className="text-indigo-600 underline">
                         {tag.project_name}
                       </Link>
-                      {tag.tagged_by_name ? ` · תויגת עי"י ${tag.tagged_by_name}` : ""}
+                      {tag.tagged_by_name ? ` · תויגת ע״י ${tag.tagged_by_name}` : ""}
                     </div>
                     {tag.note && <div className="text-sm text-slate-700 mt-2">{tag.note}</div>}
                   </div>
