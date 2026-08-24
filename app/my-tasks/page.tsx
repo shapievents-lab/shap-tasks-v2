@@ -4,11 +4,12 @@ import { getCurrentEmployee, listEmployees } from "@/lib/auth";
 import {
   listTasksForEmployee,
   listOpenTagsForEmployee,
-  listTaskTags,
+  listTaskTagsForTasks,
   type TaskWithProject,
   type TaskTag,
 } from "@/lib/data";
 import { resolveTaskTagAction } from "@/app/actions";
+import { formatEventDate } from "@/lib/dates";
 import TaskCard from "@/components/TaskCard";
 
 export default async function MyTasksPage() {
@@ -21,15 +22,22 @@ export default async function MyTasksPage() {
     listEmployees(),
   ]);
 
-  const tagLists = await Promise.all(myTasks.map((t) => listTaskTags(t.id)));
-  const tagsByTask: Record<string, TaskTag[]> = Object.fromEntries(
-    myTasks.map((t, idx) => [t.id, tagLists[idx]])
-  );
+  const tagsByTask: Record<string, TaskTag[]> = await listTaskTagsForTasks(myTasks.map((t) => t.id));
 
-  const byProject = new Map<string, { project_id: string; project_name: string; tasks: TaskWithProject[] }>();
+  // myTasks already comes back ordered soonest-event-first (see listTasksForEmployee), so
+  // insertion order into this map is the display order — no extra sort needed here.
+  const byProject = new Map<
+    string,
+    { project_id: string; project_name: string; project_event_date: string | null; tasks: TaskWithProject[] }
+  >();
   for (const t of myTasks) {
     if (!byProject.has(t.project_id)) {
-      byProject.set(t.project_id, { project_id: t.project_id, project_name: t.project_name, tasks: [] });
+      byProject.set(t.project_id, {
+        project_id: t.project_id,
+        project_name: t.project_name,
+        project_event_date: t.project_event_date ?? null,
+        tasks: [],
+      });
     }
     byProject.get(t.project_id)!.tasks.push(t);
   }
@@ -39,7 +47,7 @@ export default async function MyTasksPage() {
       <div>
         <h1 className="text-xl font-bold">המשימות שלי</h1>
         <p className="text-sm text-slate-500 mt-1">
-          כל המשימות שמשויכות אליך, מחולקות לפי פרויקט. סמני סטטוס, תייגי מישהו או אשרי תיוג ישירות מכאן.
+          כל המשימות שמשויכות אליך, מחולקות לפי פרויקט, ממוינות לפי תאריך האירוע הקרוב. סמני סטטוס, תייגי מישהו או אשרי תיוג ישירות מכאן.
         </p>
       </div>
 
@@ -60,7 +68,7 @@ export default async function MyTasksPage() {
                       <Link href={`/projects/${tag.project_id}`} className="text-indigo-600 underline">
                         {tag.project_name}
                       </Link>
-                      {tag.tagged_by_name ? ` · תויגת ע״י ${tag.tagged_by_name}` : ""}
+                      {tag.tagged_by_name ? ` · תויגת עי"י ${tag.tagged_by_name}` : ""}
                     </div>
                     {tag.note && <div className="text-sm text-slate-700 mt-2">{tag.note}</div>}
                   </div>
@@ -84,12 +92,18 @@ export default async function MyTasksPage() {
         const high = group.tasks.filter((t) => t.urgency === "high" && t.status !== "done");
         const low = group.tasks.filter((t) => t.urgency === "low" && t.status !== "done");
         const done = group.tasks.filter((t) => t.status === "done");
+        const dateLabel = formatEventDate(group.project_event_date);
         return (
           <section key={group.project_id} className="card">
-            <h2 className="font-bold text-lg mb-3">
+            <h2 className="font-bold text-lg mb-3 flex items-center gap-2 flex-wrap">
               <Link href={`/projects/${group.project_id}`} className="hover:text-indigo-600">
                 {group.project_name}
               </Link>
+              {dateLabel && (
+                <span className="text-xs font-normal text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
+                  {dateLabel}
+                </span>
+              )}
             </h2>
             <TaskGroup title="דחיפות גבוהה" accent="high" tasks={high} employees={employees} tagsByTask={tagsByTask} />
             <TaskGroup title="דחיפות נמוכה" accent="low" tasks={low} employees={employees} tagsByTask={tagsByTask} />

@@ -5,10 +5,11 @@ import {
   getProject,
   listContacts,
   listTasksByProject,
-  listTaskTags,
+  listTaskTagsForTasks,
   type Task,
   type TaskTag,
 } from "@/lib/data";
+import { formatEventRange } from "@/lib/dates";
 import {
   updateProjectAction,
   addContactAction,
@@ -48,15 +49,16 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
   const createTaskHere = createTaskAction.bind(null, id);
   const archiveThis = archiveProjectAction.bind(null, id);
 
-  const tagLists = await Promise.all(tasks.map((t) => listTaskTags(t.id)));
-  const tagsByTask: Record<string, TaskTag[]> = Object.fromEntries(
-    tasks.map((t, idx) => [t.id, tagLists[idx]])
-  );
+  const tagsByTask: Record<string, TaskTag[]> = await listTaskTagsForTasks(tasks.map((t) => t.id));
+  const dateLabel = formatEventRange(project.event_date, project.event_date_end);
 
   return (
     <div className="flex flex-col gap-6">
       <details className="card" open={!project.event_date}>
-        <summary className="cursor-pointer font-bold text-lg">{project.name} — פרטי אירוע</summary>
+        <summary className="cursor-pointer font-bold text-lg">
+          {project.name} — פרטי אירוע
+          {dateLabel && <span className="text-sm font-normal text-slate-500 ms-2">({dateLabel})</span>}
+        </summary>
         <form action={updateThisProject} className="grid sm:grid-cols-2 gap-3 mt-4">
           <label className="text-sm sm:col-span-2">
             שם הפרויקט / האירוע
@@ -67,16 +69,25 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
             <input name="client_contact" defaultValue={project.client_contact ?? ""} className="input mt-1" />
           </label>
           <label className="text-sm">
-            תאריך התחלה
-            <input name="event_date" type="date" defaultValue={project.event_date ?? ""} className="input mt-1" />
+            תאריך התחלה (מלא: 2026-11-05, או רק חודש: 2026-11)
+            <input
+              name="event_date"
+              type="text"
+              placeholder="2026-11-05 או 2026-11"
+              defaultValue={project.event_date ?? ""}
+              className="input mt-1"
+              dir="ltr"
+            />
           </label>
           <label className="text-sm">
             תאריך סיום (אם מדובר ביותר מיום אחד)
             <input
               name="event_date_end"
-              type="date"
+              type="text"
+              placeholder="2026-11-07"
               defaultValue={project.event_date_end ?? ""}
               className="input mt-1"
+              dir="ltr"
             />
           </label>
           <label className="text-sm">
