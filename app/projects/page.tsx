@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentEmployee } from "@/lib/auth";
 import { listProjects, listTasksByProject } from "@/lib/data";
-import { createProjectAction } from "@/app/actions";
+import { createProjectAction, archiveProjectQuickAction } from "@/app/actions";
 
 export default async function ProjectsPage() {
   const me = await getCurrentEmployee();
@@ -15,6 +15,9 @@ export default async function ProjectsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">פרויקטים</h1>
+        <Link href="/projects/archived" className="text-sm text-slate-500 hover:text-slate-800">
+          פרויקטים שהסתיימו / בארכיון ←
+        </Link>
       </div>
 
       <div className="grid gap-3">
@@ -30,27 +33,31 @@ export default async function ProjectsPage() {
             p.event_date && p.event_date_end && p.event_date_end !== p.event_date
               ? `${p.event_date} – ${p.event_date_end}`
               : p.event_date;
+          const archiveThisQuick = archiveProjectQuickAction.bind(null, p.id);
           return (
-            <Link
-              key={p.id}
-              href={`/projects/${p.id}`}
-              className="card flex items-center justify-between hover:border-indigo-400 transition"
-            >
-              <div>
+            <div key={p.id} className="card flex items-center justify-between hover:border-indigo-400 transition">
+              <Link href={`/projects/${p.id}`} className="flex-1">
                 <div className="font-semibold">{p.name}</div>
                 <div className="text-sm text-slate-500">
                   {[dateLabel, p.location, p.client_contact].filter(Boolean).join(" · ") ||
                     "אין עדיין פרטים"}
                 </div>
-              </div>
-              <div className="flex gap-2">
+              </Link>
+              <div className="flex items-center gap-2">
                 {high > 0 && <span className="badge badge-high">{high} דחוף</span>}
                 {low > 0 && <span className="badge badge-low">{low} רגיל</span>}
                 {open.length === 0 && tasks.length > 0 && (
                   <span className="badge badge-done">הכל הושלם</span>
                 )}
+                {me.role === "owner" && (
+                  <form action={archiveThisQuick}>
+                    <button className="btn btn-secondary btn-sm" type="submit">
+                      העבר לארכיון
+                    </button>
+                  </form>
+                )}
               </div>
-            </Link>
+            </div>
           );
         })}
       </div>

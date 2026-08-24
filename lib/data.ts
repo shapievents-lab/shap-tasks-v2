@@ -53,11 +53,19 @@ export type TaskTag = {
 
 // ---------- Projects ----------
 
-export async function listProjects(includeArchived = false): Promise<Project[]> {
-  const sql = includeArchived
-    ? "SELECT * FROM projects ORDER BY event_date DESC NULLS LAST, created_at DESC"
-    : "SELECT * FROM projects WHERE archived = FALSE ORDER BY event_date DESC NULLS LAST, created_at DESC";
-  const { rows } = await query<Project>(sql);
+/** Active (non-archived) projects, soonest upcoming date first; projects with no date go last. */
+export async function listProjects(): Promise<Project[]> {
+  const { rows } = await query<Project>(
+    "SELECT * FROM projects WHERE archived = FALSE ORDER BY event_date ASC NULLS LAST, created_at DESC"
+  );
+  return rows;
+}
+
+/** Archived (finished/cancelled) projects, most recently archived date first. */
+export async function listArchivedProjects(): Promise<Project[]> {
+  const { rows } = await query<Project>(
+    "SELECT * FROM projects WHERE archived = TRUE ORDER BY event_date DESC NULLS LAST, created_at DESC"
+  );
   return rows;
 }
 

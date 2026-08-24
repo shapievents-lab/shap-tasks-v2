@@ -96,19 +96,19 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
             הערות כלליות
             <textarea name="general_notes" defaultValue={project.general_notes ?? ""} className="input mt-1" rows={2} />
           </label>
-          <div className="sm:col-span-2 flex justify-between items-center">
+          <div className="sm:col-span-2">
             <button className="btn btn-primary" type="submit">
               שמור פרטים
             </button>
-            {me.role === "owner" && (
-              <form action={archiveThis}>
-                <button className="btn btn-secondary btn-sm" type="submit">
-                  העבר לארכיון
-                </button>
-              </form>
-            )}
           </div>
         </form>
+        {me.role === "owner" && (
+          <form action={archiveThis} className="mt-3">
+            <button className="btn btn-secondary btn-sm" type="submit">
+              {project.archived ? "הפרויקט בארכיון" : "העבר לארכיון"}
+            </button>
+          </form>
+        )}
       </details>
 
       <details className="card">

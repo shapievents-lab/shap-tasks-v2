@@ -77,9 +77,28 @@ export async function updateProjectAction(projectId: string, formData: FormData)
 }
 
 export async function archiveProjectAction(projectId: string) {
+  const me = await getCurrentEmployee();
+  if (!me || me.role !== "owner") return;
   await updateProject(projectId, { archived: true });
   revalidatePath("/projects");
+  revalidatePath("/projects/archived");
   redirect("/projects");
+}
+
+export async function archiveProjectQuickAction(projectId: string) {
+  const me = await getCurrentEmployee();
+  if (!me || me.role !== "owner") return;
+  await updateProject(projectId, { archived: true });
+  revalidatePath("/projects");
+  revalidatePath("/projects/archived");
+}
+
+export async function unarchiveProjectAction(projectId: string) {
+  const me = await getCurrentEmployee();
+  if (!me || me.role !== "owner") return;
+  await updateProject(projectId, { archived: false });
+  revalidatePath("/projects");
+  revalidatePath("/projects/archived");
 }
 
 export async function addContactAction(projectId: string, formData: FormData) {
