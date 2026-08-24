@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local scratch / dev-only files (not part of the deployed app)
+/scripts/
+/data/
+AGENTS.md
+CLAUDE.md
+/public/
+/app/favicon.ico
+package-lock.json
