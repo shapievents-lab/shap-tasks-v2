@@ -7,7 +7,7 @@ import { setTaskOwnerAction } from "@/app/actions";
 
 const statusLabel: Record<TaskWithProject["status"], string> = {
   open: "פתוח",
-  stuck: "תקוע",
+  stuck: "בעבודה",
   done: "הושלם",
 };
 

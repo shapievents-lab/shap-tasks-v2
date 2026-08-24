@@ -9,6 +9,9 @@ export default async function TeamPage() {
 
   const [employees, tasks] = await Promise.all([listEmployees(), listAllOpenTasks()]);
   const teamMembers = employees.filter((e) => e.role === "employee");
+  // Anyone (including owners) can be picked in the reassignment dropdown — an owner may end up
+  // owning a task too (e.g. something that needs their personal approval/follow-up).
+  const assignable = employees;
 
   const unassigned = tasks.filter((t) => !t.owner_employee_id && t.status !== "done");
 
@@ -27,14 +30,14 @@ export default async function TeamPage() {
           </h2>
           <div className="flex flex-col gap-2">
             {unassigned.map((t) => (
-              <TeamTaskRow key={t.id} task={t} employees={teamMembers} />
+              <TeamTaskRow key={t.id} task={t} employees={assignable} />
             ))}
           </div>
         </section>
       )}
 
       {teamMembers.map((emp) => (
-        <EmployeeSection key={emp.id} employee={emp} tasks={tasks} employees={teamMembers} />
+        <EmployeeSection key={emp.id} employee={emp} tasks={tasks} employees={assignable} />
       ))}
     </div>
   );

@@ -20,6 +20,9 @@ export default function NavBar({
           <Link href="/projects" className="text-sm text-slate-600 hover:text-slate-900">
             פרויקטים
           </Link>
+          <Link href="/my-tasks" className="text-sm text-slate-600 hover:text-slate-900">
+            המשימות שלי
+          </Link>
           <Link href="/team" className="text-sm text-slate-600 hover:text-slate-900">
             משימות הצוות
           </Link>

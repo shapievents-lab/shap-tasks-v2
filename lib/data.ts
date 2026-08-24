@@ -48,7 +48,16 @@ export type TaskTag = {
   employee_name?: string;
   tagged_by: string | null;
   note: string | null;
+  resolved_at: Date | null;
   created_at: Date;
+};
+
+export type TagWithTask = TaskTag & {
+  task_title: string;
+  task_status: Task["status"];
+  project_id: string;
+  project_name: string;
+  tagged_by_name: string | null;
 };
 
 // ---------- Projects ----------
@@ -146,6 +155,27 @@ export async function addContact(
     "INSERT INTO contacts (id, project_id, name, phone, role) VALUES ($1, $2, $3, $4, $5)",
     [newId(), projectId, name, phone, role]
   );
+}
+
+export async function updateContact(
+  contactId: string,
+  input: { name: string; phone: string | null; role: string | null }
+) {
+  await query("UPDATE contacts SET name = $1, phone = $2, role = $3 WHERE id = $4", [
+    input.name,
+    input.phone,
+    input.role,
+    contactId,
+  ]);
+}
+
+export async function deleteContact(contactId: string) {
+  await query("DELETE FROM contacts WHERE id = $1", [contactId]);
+}
+
+export async function getContact(contactId: string): Promise<Contact | null> {
+  const { rows } = await query<Contact>("SELECT * FROM contacts WHERE id = $1", [contactId]);
+  return rows[0] ?? null;
 }
 
 // ---------- Tasks ----------
@@ -269,6 +299,38 @@ export async function tagEmployeeOnTask(
   });
 }
 
+/** Marks a tag as handled (e.g. the tagged person approved / dealt with it), so it drops off
+ * their personal "waiting for you" list. */
+export async function resolveTaskTag(tagId: string, actorEmployeeId: string | null) {
+  const { rows } = await query<TaskTag>("SELECT * FROM task_tags WHERE id = $1", [tagId]);
+  const tag = rows[0];
+  if (!tag) return;
+  await query("UPDATE task_tags SET resolved_at = now() WHERE id = $1", [tagId]);
+  await logActivity({
+    taskId: tag.task_id,
+    employeeId: actorEmployeeId,
+    action: "tag_resolved",
+    detail: null,
+  });
+}
+
+/** All unresolved tags directed at an employee, with enough task/project context to show them
+ * on that employee's personal task board (e.g. "סטפני תייגה אותך: אני צריכה שתאשרי"). */
+export async function listOpenTagsForEmployee(employeeId: string): Promise<TagWithTask[]> {
+  const { rows } = await query<TagWithTask>(
+    `SELECT tt.*, t.title as task_title, t.status as task_status, t.project_id,
+            p.name as project_name, tagger.name as tagged_by_name
+     FROM task_tags tt
+     JOIN tasks t ON t.id = tt.task_id
+     JOIN projects p ON p.id = t.project_id
+     LEFT JOIN employees tagger ON tagger.id = tt.tagged_by
+     WHERE tt.employee_id = $1 AND tt.resolved_at IS NULL
+     ORDER BY tt.created_at DESC`,
+    [employeeId]
+  );
+  return rows;
+}
+
 export async function setTaskOwner(
   taskId: string,
   employeeId: string | null,
@@ -370,6 +432,21 @@ export async function listAllOpenTasks(): Promise<TaskWithProject[]> {
      LEFT JOIN employees e ON e.id = t.owner_employee_id
      WHERE p.archived = FALSE
      ORDER BY t.due_date NULLS LAST, t.created_at DESC`
+  );
+  return rows;
+}
+
+/** All tasks (any status) owned by one employee across active projects, for their personal
+ * "המשימות שלי" board, grouped by project in the UI. */
+export async function listTasksForEmployee(employeeId: string): Promise<TaskWithProject[]> {
+  const { rows } = await query<TaskWithProject>(
+    `SELECT t.*, p.name as project_name, e.name as owner_name
+     FROM tasks t
+     JOIN projects p ON p.id = t.project_id
+     LEFT JOIN employees e ON e.id = t.owner_employee_id
+     WHERE t.owner_employee_id = $1 AND p.archived = FALSE
+     ORDER BY p.name, t.due_date NULLS LAST, t.created_at DESC`,
+    [employeeId]
   );
   return rows;
 }

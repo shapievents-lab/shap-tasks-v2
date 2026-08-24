@@ -8,11 +8,13 @@ const actionLabel: Record<string, string> = {
   status_changed: "עדכן/ה סטטוס ל",
   tagged: "תייג/ה מישהו",
   note: "הוסיף/ה הערה",
+  assigned: "שייך/ה משימה",
+  tag_resolved: "סימן/ה תיוג כטופל",
 };
 
 const statusLabel: Record<string, string> = {
   open: "פתוח",
-  stuck: "תקוע",
+  stuck: "בעבודה",
   done: "הושלם",
 };
 
@@ -32,6 +34,8 @@ export default async function OwnerPage(props: PageProps<"/owner">) {
     if (!byEmployee.has(key)) byEmployee.set(key, []);
     byEmployee.get(key)!.push(row);
   }
+
+  const completed = activity.filter((r) => r.action === "status_changed" && r.detail === "done");
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,6 +60,37 @@ export default async function OwnerPage(props: PageProps<"/owner">) {
       {byEmployee.size === 0 && (
         <p className="text-slate-500">אין עדיין פעילות בטווח הזה.</p>
       )}
+
+      <section>
+        <h2 className="font-semibold mb-2 flex items-center gap-2">
+          <span className="badge badge-done">{completed.length}</span>
+          משימות שהושלמו ({range === "week" ? "השבוע" : "היום"})
+        </h2>
+        {completed.length === 0 ? (
+          <p className="text-sm text-slate-500">אין עדיין משימות שהושלמו בטווח הזה.</p>
+        ) : (
+          <div className="card">
+            <ul className="flex flex-col gap-1 text-sm">
+              {completed.map((r) => (
+                <li key={r.id} className="text-slate-600 border-b last:border-0 pb-1">
+                  <span className="text-slate-400 text-xs">
+                    {new Date(r.created_at).toLocaleString("he-IL", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      day: "2-digit",
+                      month: "2-digit",
+                      timeZone: "Asia/Jerusalem",
+                    })}
+                  </span>{" "}
+                  <span className="font-medium">{r.employee_name ?? "לא ידוע"}</span> השלים/ה את{" "}
+                  <span className="font-medium">{r.task_title}</span>
+                  {r.project_name ? ` (${r.project_name})` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {[...byEmployee.entries()].map(([name, rows]) => (

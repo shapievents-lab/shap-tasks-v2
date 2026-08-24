@@ -4,11 +4,12 @@ import {
   updateTaskStatusAction,
   addTaskNoteAction,
   tagEmployeeAction,
+  resolveTaskTagAction,
 } from "@/app/actions";
 
 const statusLabel: Record<Task["status"], string> = {
   open: "פתוח",
-  stuck: "תקוע",
+  stuck: "בעבודה",
   done: "הושלם",
 };
 
@@ -51,13 +52,34 @@ export default function TaskCard({
             </div>
           )}
           {tags.length > 0 && (
-            <div className="text-xs text-amber-700 mt-2 flex flex-wrap gap-2">
-              {tags.map((t) => (
-                <span key={t.id} className="bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-                  🏷 {t.employee_name}
-                  {t.note ? `: ${t.note}` : ""}
-                </span>
-              ))}
+            <div className="text-xs mt-2 flex flex-wrap gap-2">
+              {tags.map((t) => {
+                const resolveThis = resolveTaskTagAction.bind(null, t.id, task.project_id);
+                return (
+                  <span
+                    key={t.id}
+                    className={`flex items-center gap-1 border rounded px-2 py-0.5 ${
+                      t.resolved_at
+                        ? "bg-slate-50 border-slate-200 text-slate-400 line-through"
+                        : "bg-amber-50 border-amber-200 text-amber-700"
+                    }`}
+                  >
+                    🏷 {t.employee_name}
+                    {t.note ? `: ${t.note}` : ""}
+                    {!t.resolved_at && (
+                      <form action={resolveThis}>
+                        <button
+                          type="submit"
+                          className="text-emerald-700 font-bold ms-1"
+                          title="סמן כטופל"
+                        >
+                          ✓
+                        </button>
+                      </form>
+                    )}
+                  </span>
+                );
+              })}
             </div>
           )}
         </div>
@@ -72,7 +94,7 @@ export default function TaskCard({
         </form>
         <form action={setStuck}>
           <button className="btn btn-secondary btn-sm" type="submit">
-            תקוע
+            בעבודה
           </button>
         </form>
         <form action={setDone}>
@@ -84,7 +106,7 @@ export default function TaskCard({
         <details className="ms-auto">
           <summary className="text-xs text-indigo-600 cursor-pointer">תייג / הוסף הערה</summary>
           <div className="flex flex-col gap-2 mt-2 w-64">
-            <form action={tagHere} className="flex gap-2">
+            <form action={tagHere} className="flex flex-col gap-2">
               <select name="employee_id" className="input" required defaultValue="">
                 <option value="" disabled>
                   תייג עובד/ת...
@@ -95,6 +117,7 @@ export default function TaskCard({
                   </option>
                 ))}
               </select>
+              <input name="note" placeholder="הערה (למשל: אני צריכה שתאשרי)" className="input" />
               <button className="btn btn-secondary btn-sm" type="submit">
                 תייג
               </button>

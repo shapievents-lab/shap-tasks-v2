@@ -13,10 +13,13 @@ import {
   createProject,
   updateProject,
   addContact,
+  updateContact,
+  deleteContact,
   createTask,
   updateTaskStatus,
   addTaskNote,
   tagEmployeeOnTask,
+  resolveTaskTag,
   getTask,
   getProject,
   setTaskOwner,
@@ -108,6 +111,26 @@ export async function addContactAction(projectId: string, formData: FormData) {
   revalidatePath(`/projects/${projectId}`);
 }
 
+export async function updateContactAction(
+  projectId: string,
+  contactId: string,
+  formData: FormData
+) {
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  await updateContact(contactId, {
+    name,
+    phone: str(formData.get("phone")),
+    role: str(formData.get("role")),
+  });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function deleteContactAction(projectId: string, contactId: string) {
+  await deleteContact(contactId);
+  revalidatePath(`/projects/${projectId}`);
+}
+
 export async function createTaskAction(projectId: string, formData: FormData) {
   const me = await getCurrentEmployee();
   const title = String(formData.get("title") ?? "").trim();
@@ -128,6 +151,7 @@ export async function createTaskAction(projectId: string, formData: FormData) {
   });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/team");
+  revalidatePath("/my-tasks");
 }
 
 export async function updateTaskStatusAction(taskId: string, status: "open" | "stuck" | "done") {
@@ -137,6 +161,8 @@ export async function updateTaskStatusAction(taskId: string, status: "open" | "s
   if (task) {
     revalidatePath(`/projects/${task.project_id}`);
     revalidatePath("/team");
+    revalidatePath("/my-tasks");
+    revalidatePath("/owner");
   }
 }
 
@@ -157,6 +183,7 @@ export async function setTaskOwnerAction(taskId: string, formData: FormData) {
   if (task) {
     revalidatePath(`/projects/${task.project_id}`);
     revalidatePath("/team");
+    revalidatePath("/my-tasks");
   }
 }
 
@@ -194,6 +221,14 @@ export async function tagEmployeeAction(taskId: string, formData: FormData) {
     revalidatePath(`/projects/${task.project_id}`);
     revalidatePath("/team");
   }
+  revalidatePath("/my-tasks");
+}
+
+export async function resolveTaskTagAction(tagId: string, projectId?: string) {
+  const me = await getCurrentEmployee();
+  await resolveTaskTag(tagId, me?.id ?? null);
+  revalidatePath("/my-tasks");
+  if (projectId) revalidatePath(`/projects/${projectId}`);
 }
 
 export async function markNotificationReadAction(notificationId: string) {
