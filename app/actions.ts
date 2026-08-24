@@ -24,6 +24,7 @@ import {
   getProject,
   setTaskOwner,
   bulkImportProjects,
+  reorderProjects,
   type ImportProject,
 } from "@/lib/data";
 import { markNotificationRead, markAllNotificationsRead } from "@/lib/data";
@@ -102,6 +103,12 @@ export async function unarchiveProjectAction(projectId: string) {
   await updateProject(projectId, { archived: false });
   revalidatePath("/projects");
   revalidatePath("/projects/archived");
+}
+
+/** Persists a new drag-and-drop order for the active projects list ("סדר ידני" mode). */
+export async function reorderProjectsAction(orderedIds: string[]) {
+  await reorderProjects(orderedIds);
+  revalidatePath("/projects");
 }
 
 export async function addContactAction(projectId: string, formData: FormData) {

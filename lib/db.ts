@@ -127,6 +127,7 @@ async function migrate() {
     ALTER TABLE projects ADD COLUMN IF NOT EXISTS event_date_end TEXT;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date TEXT;
     ALTER TABLE task_tags ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS custom_sort_order INTEGER;
 
     CREATE INDEX IF NOT EXISTS idx_tags_employee_open ON task_tags(employee_id) WHERE resolved_at IS NULL;
   `);
