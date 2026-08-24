@@ -82,6 +82,24 @@ export async function listArchivedProjects(): Promise<Project[]> {
   return rows;
 }
 
+/** Active projects in the manual/custom order sher (or an owner) has dragged them into.
+ * Projects that were never manually placed fall back to soonest-date-first, appended after
+ * the manually-ordered ones. */
+export async function listProjectsCustomOrder(): Promise<Project[]> {
+  const { rows } = await query<Project>(
+    `SELECT * FROM projects WHERE archived = FALSE
+     ORDER BY custom_sort_order ASC NULLS LAST, event_date ASC NULLS LAST, created_at DESC`
+  );
+  return rows;
+}
+
+/** Persists a manual drag-and-drop order for the active project list. */
+export async function reorderProjects(orderedIds: string[]) {
+  for (let i = 0; i < orderedIds.length; i++) {
+    await query("UPDATE projects SET custom_sort_order = $1 WHERE id = $2", [i, orderedIds[i]]);
+  }
+}
+
 export async function getProject(projectId: string): Promise<Project | null> {
   const { rows } = await query<Project>("SELECT * FROM projects WHERE id = $1", [projectId]);
   return rows[0] ?? null;
