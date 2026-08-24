@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
+  --background: #f4f6fb;
   --foreground: #0f172a;
 }
 
@@ -19,8 +19,24 @@ body {
 .card {
   background: white;
   border: 1px solid #e2e8f0;
+  border-inline-start: 3px solid #e2e8f0;
   border-radius: 12px;
   padding: 16px;
+}
+
+/* Subtle color accents so it's easier to tell what's what at a glance — a colored strip
+ * plus a faint tint, not a full color wash. Used on project cards and task cards. */
+.card-accent-high {
+  border-inline-start-color: #ef4444;
+  background: linear-gradient(to left, #fff, #fff 85%, #fef2f2);
+}
+.card-accent-low {
+  border-inline-start-color: #38bdf8;
+}
+.card-accent-done {
+  border-inline-start-color: #22c55e;
+  background: #fafffc;
+  opacity: 0.85;
 }
 
 .btn {
