@@ -19,6 +19,7 @@ import {
   tagEmployeeOnTask,
   getTask,
   getProject,
+  setTaskOwner,
 } from "@/lib/data";
 import { markNotificationRead, markAllNotificationsRead } from "@/lib/data";
 import { notifyEmployee } from "@/lib/notify";
@@ -45,6 +46,7 @@ export async function createProjectAction(formData: FormData) {
     name,
     client_contact: str(formData.get("client_contact")),
     event_date: str(formData.get("event_date")),
+    event_date_end: str(formData.get("event_date_end")),
     hours: str(formData.get("hours")),
     headcount: str(formData.get("headcount")),
     location: str(formData.get("location")),
@@ -61,6 +63,7 @@ export async function updateProjectAction(projectId: string, formData: FormData)
     name: String(formData.get("name") ?? ""),
     client_contact: str(formData.get("client_contact")),
     event_date: str(formData.get("event_date")),
+    event_date_end: str(formData.get("event_date_end")),
     hours: str(formData.get("hours")),
     headcount: str(formData.get("headcount")),
     location: str(formData.get("location")),
@@ -99,16 +102,41 @@ export async function createTaskAction(projectId: string, formData: FormData) {
     ownerEmployeeId: str(formData.get("owner_employee_id")),
     notes: str(formData.get("notes")),
     links: linkUrl ? [{ label: linkLabel || linkUrl, url: linkUrl }] : undefined,
+    dueDate: str(formData.get("due_date")),
     actorEmployeeId: me?.id ?? null,
   });
   revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/team");
 }
 
 export async function updateTaskStatusAction(taskId: string, status: "open" | "stuck" | "done") {
   const me = await getCurrentEmployee();
   const task = await getTask(taskId);
   await updateTaskStatus(taskId, status, me?.id ?? null);
-  if (task) revalidatePath(`/projects/${task.project_id}`);
+  if (task) {
+    revalidatePath(`/projects/${task.project_id}`);
+    revalidatePath("/team");
+  }
+}
+
+export async function setTaskOwnerAction(taskId: string, formData: FormData) {
+  const me = await getCurrentEmployee();
+  const employeeId = str(formData.get("employee_id"));
+  await setTaskOwner(taskId, employeeId, me?.id ?? null);
+
+  const task = await getTask(taskId);
+  if (task && employeeId) {
+    const project = await getProject(task.project_id);
+    await notifyEmployee({
+      employeeId,
+      taskId,
+      message: `שויכת/ה למשימה "${task.title}"${project ? ` (${project.name})` : ""}`,
+    });
+  }
+  if (task) {
+    revalidatePath(`/projects/${task.project_id}`);
+    revalidatePath("/team");
+  }
 }
 
 export async function addTaskNoteAction(taskId: string, formData: FormData) {
@@ -141,7 +169,10 @@ export async function tagEmployeeAction(taskId: string, formData: FormData) {
       }${note ? `: ${note}` : ""}`,
     });
   }
-  if (task) revalidatePath(`/projects/${task.project_id}`);
+  if (task) {
+    revalidatePath(`/projects/${task.project_id}`);
+    revalidatePath("/team");
+  }
 }
 
 export async function markNotificationReadAction(notificationId: string) {

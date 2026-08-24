@@ -5,6 +5,7 @@ export type Project = {
   name: string;
   client_contact: string | null;
   event_date: string | null;
+  event_date_end: string | null;
   hours: string | null;
   headcount: string | null;
   location: string | null;
@@ -33,9 +34,12 @@ export type Task = {
   owner_employee_id: string | null;
   notes: string | null;
   links: string | null;
+  due_date: string | null;
   created_at: Date;
   updated_at: Date;
 };
+
+export type TaskWithProject = Task & { project_name: string; owner_name: string | null };
 
 export type TaskTag = {
   id: string;
@@ -66,13 +70,14 @@ export async function createProject(input: Partial<Project> & { name: string }):
   const id = newId();
   await query(
     `INSERT INTO projects
-      (id, name, client_contact, event_date, hours, headcount, location, team_present, proposal_owner, general_notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      (id, name, client_contact, event_date, event_date_end, hours, headcount, location, team_present, proposal_owner, general_notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       id,
       input.name,
       input.client_contact ?? null,
       input.event_date ?? null,
+      input.event_date_end ?? null,
       input.hours ?? null,
       input.headcount ?? null,
       input.location ?? null,
@@ -89,6 +94,7 @@ export async function updateProject(projectId: string, input: Partial<Project>) 
     "name",
     "client_contact",
     "event_date",
+    "event_date_end",
     "hours",
     "headcount",
     "location",
@@ -157,13 +163,14 @@ export async function createTask(input: {
   ownerEmployeeId?: string | null;
   notes?: string | null;
   links?: { label: string; url: string }[];
+  dueDate?: string | null;
   actorEmployeeId?: string | null;
 }): Promise<string> {
   const id = newId();
   await query(
     `INSERT INTO tasks
-      (id, project_id, title, urgency, status, responsible_contact, owner_employee_id, notes, links)
-     VALUES ($1, $2, $3, $4, 'open', $5, $6, $7, $8)`,
+      (id, project_id, title, urgency, status, responsible_contact, owner_employee_id, notes, links, due_date)
+     VALUES ($1, $2, $3, $4, 'open', $5, $6, $7, $8, $9)`,
     [
       id,
       input.projectId,
@@ -173,6 +180,7 @@ export async function createTask(input: {
       input.ownerEmployeeId ?? null,
       input.notes ?? null,
       input.links ? JSON.stringify(input.links) : null,
+      input.dueDate ?? null,
     ]
   );
   await logActivity({
@@ -251,6 +259,41 @@ export async function tagEmployeeOnTask(
     action: "tagged",
     detail: employeeId,
   });
+}
+
+export async function setTaskOwner(
+  taskId: string,
+  employeeId: string | null,
+  actorEmployeeId: string | null
+) {
+  const task = await getTask(taskId);
+  if (!task) return;
+  await query("UPDATE tasks SET owner_employee_id = $1, updated_at = now() WHERE id = $2", [
+    employeeId,
+    taskId,
+  ]);
+  await logActivity({
+    taskId,
+    projectId: task.project_id,
+    employeeId: actorEmployeeId,
+    action: "assigned",
+    detail: employeeId,
+  });
+}
+
+// ---------- Team-wide task view ----------
+
+/** All non-archived tasks across every project, with project + owner names for the team view. */
+export async function listAllOpenTasks(): Promise<TaskWithProject[]> {
+  const { rows } = await query<TaskWithProject>(
+    `SELECT t.*, p.name as project_name, e.name as owner_name
+     FROM tasks t
+     JOIN projects p ON p.id = t.project_id
+     LEFT JOIN employees e ON e.id = t.owner_employee_id
+     WHERE p.archived = FALSE
+     ORDER BY t.due_date NULLS LAST, t.created_at DESC`
+  );
+  return rows;
 }
 
 // ---------- Activity / dashboard ----------

@@ -60,8 +60,17 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
             <input name="client_contact" defaultValue={project.client_contact ?? ""} className="input mt-1" />
           </label>
           <label className="text-sm">
-            תאריך
+            תאריך התחלה
             <input name="event_date" type="date" defaultValue={project.event_date ?? ""} className="input mt-1" />
+          </label>
+          <label className="text-sm">
+            תאריך סיום (אם מדובר ביותר מיום אחד)
+            <input
+              name="event_date_end"
+              type="date"
+              defaultValue={project.event_date_end ?? ""}
+              className="input mt-1"
+            />
           </label>
           <label className="text-sm">
             שעות
@@ -155,6 +164,10 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="text-sm">
+            תאריך יעד למשימה (אופציונלי)
+            <input name="due_date" type="date" className="input mt-1" />
           </label>
           <label className="text-sm">
             קישור (אופציונלי)

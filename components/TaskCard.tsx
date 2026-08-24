@@ -38,6 +38,7 @@ export default function TaskCard({
           <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
             {task.responsible_contact && <span>איש קשר: {task.responsible_contact}</span>}
             {owner && <span>אחראי/ת: {owner.name}</span>}
+            {task.due_date && <span>יעד: {task.due_date}</span>}
             {links.map((l) => (
               <a key={l.url} href={l.url} target="_blank" className="text-indigo-600 underline">
                 {l.label}

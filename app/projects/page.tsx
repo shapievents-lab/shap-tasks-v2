@@ -26,6 +26,10 @@ export default async function ProjectsPage() {
           const open = tasks.filter((t) => t.status !== "done");
           const high = open.filter((t) => t.urgency === "high").length;
           const low = open.filter((t) => t.urgency === "low").length;
+          const dateLabel =
+            p.event_date && p.event_date_end && p.event_date_end !== p.event_date
+              ? `${p.event_date} – ${p.event_date_end}`
+              : p.event_date;
           return (
             <Link
               key={p.id}
@@ -35,7 +39,7 @@ export default async function ProjectsPage() {
               <div>
                 <div className="font-semibold">{p.name}</div>
                 <div className="text-sm text-slate-500">
-                  {[p.event_date, p.location, p.client_contact].filter(Boolean).join(" · ") ||
+                  {[dateLabel, p.location, p.client_contact].filter(Boolean).join(" · ") ||
                     "אין עדיין פרטים"}
                 </div>
               </div>
@@ -63,8 +67,12 @@ export default async function ProjectsPage() {
             <input name="client_contact" className="input mt-1" />
           </label>
           <label className="text-sm">
-            תאריך
+            תאריך התחלה
             <input name="event_date" type="date" className="input mt-1" />
+          </label>
+          <label className="text-sm">
+            תאריך סיום (אם מדובר ביותר מיום אחד)
+            <input name="event_date_end" type="date" className="input mt-1" />
           </label>
           <label className="text-sm">
             שעות

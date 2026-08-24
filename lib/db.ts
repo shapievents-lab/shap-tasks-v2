@@ -84,6 +84,7 @@ async function migrate() {
       owner_employee_id TEXT REFERENCES employees(id),
       notes TEXT,
       links TEXT,
+      due_date TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
@@ -121,6 +122,10 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS idx_tags_task ON task_tags(task_id);
     CREATE INDEX IF NOT EXISTS idx_notif_employee ON notifications(employee_id, read);
     CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_employee_id);
+
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS event_date_end TEXT;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date TEXT;
   `);
 
   const { rows } = await pool.query<{ c: number }>("SELECT COUNT(*)::int as c FROM employees");
