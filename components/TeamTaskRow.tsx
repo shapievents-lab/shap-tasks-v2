@@ -19,9 +19,11 @@ export default function TeamTaskRow({
   employees: Employee[];
 }) {
   const assignHere = setTaskOwnerAction.bind(null, task.id);
+  const accent =
+    task.status === "done" ? "card-accent-done" : task.urgency === "high" ? "card-accent-high" : "card-accent-low";
 
   return (
-    <div className="card flex flex-wrap items-center justify-between gap-3">
+    <div className={`card flex flex-wrap items-center justify-between gap-3 ${accent}`}>
       <div>
         <div className="font-medium">{task.title}</div>
         <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">

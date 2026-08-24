@@ -30,9 +30,15 @@ export default function TaskCard({
 
   const links: { label: string; url: string }[] = task.links ? JSON.parse(task.links) : [];
   const owner = employees.find((e) => e.id === task.owner_employee_id);
+  const accent =
+    task.status === "done"
+      ? "card-accent-done"
+      : task.urgency === "high"
+        ? "card-accent-high"
+        : "card-accent-low";
 
   return (
-    <div className="card">
+    <div className={`card ${accent}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-medium">{task.title}</div>
