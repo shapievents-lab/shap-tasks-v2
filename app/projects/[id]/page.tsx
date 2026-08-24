@@ -12,10 +12,13 @@ import {
 import {
   updateProjectAction,
   addContactAction,
+  updateContactAction,
+  deleteContactAction,
   createTaskAction,
   archiveProjectAction,
 } from "@/app/actions";
 import TaskCard from "@/components/TaskCard";
+import ContactRow from "@/components/ContactRow";
 
 export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
   const { id } = await props.params;
@@ -30,7 +33,9 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
     listTasksByProject(id),
     listEmployees(),
   ]);
-  const employees = allEmployees.filter((e) => e.role === "employee");
+  // Everyone (employees + owners) can be assigned to / tagged on a task — an owner may need to
+  // approve something a team member tagged them on.
+  const employees = allEmployees;
 
   const high = tasks.filter((t) => t.urgency === "high" && t.status !== "done");
   const low = tasks.filter((t) => t.urgency === "low" && t.status !== "done");
@@ -38,6 +43,8 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
 
   const updateThisProject = updateProjectAction.bind(null, id);
   const addContactHere = addContactAction.bind(null, id);
+  const updateContactHere = updateContactAction.bind(null, id);
+  const deleteContactHere = deleteContactAction.bind(null, id);
   const createTaskHere = createTaskAction.bind(null, id);
   const archiveThis = archiveProjectAction.bind(null, id);
 
@@ -117,13 +124,12 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
         </summary>
         <div className="mt-4 flex flex-col gap-2">
           {contacts.map((c) => (
-            <div key={c.id} className="flex items-center justify-between border-b last:border-0 py-1 text-sm">
-              <span className="font-medium">{c.name}</span>
-              <span className="text-slate-500">{c.role}</span>
-              <span dir="ltr" className="text-slate-500">
-                {c.phone}
-              </span>
-            </div>
+            <ContactRow
+              key={c.id}
+              contact={c}
+              updateAction={updateContactHere}
+              deleteAction={deleteContactHere}
+            />
           ))}
           <form action={addContactHere} className="grid sm:grid-cols-4 gap-2 mt-2">
             <input name="name" placeholder="שם" className="input" required />
