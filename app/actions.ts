@@ -20,6 +20,8 @@ import {
   getTask,
   getProject,
   setTaskOwner,
+  bulkImportProjects,
+  type ImportProject,
 } from "@/lib/data";
 import { markNotificationRead, markAllNotificationsRead } from "@/lib/data";
 import { notifyEmployee } from "@/lib/notify";
@@ -184,6 +186,27 @@ export async function markAllNotificationsReadAction() {
   const me = await getCurrentEmployee();
   if (me) await markAllNotificationsRead(me.id);
   revalidatePath("/notifications");
+}
+
+export async function bulkImportAction(formData: FormData) {
+  const me = await getCurrentEmployee();
+  if (!me || me.role !== "owner") {
+    return { ok: false, error: "רק בעלים יכולים לייבא נתונים." };
+  }
+  const raw = String(formData.get("payload") ?? "");
+  let parsed: { projects: ImportProject[] };
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "JSON לא תקין." };
+  }
+  if (!Array.isArray(parsed.projects)) {
+    return { ok: false, error: "המבנה חייב לכלול מערך projects." };
+  }
+  const result = await bulkImportProjects(parsed.projects);
+  revalidatePath("/projects");
+  revalidatePath("/team");
+  return { ok: true, ...result };
 }
 
 function str(v: FormDataEntryValue | null): string | null {

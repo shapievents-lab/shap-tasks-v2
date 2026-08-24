@@ -281,6 +281,76 @@ export async function setTaskOwner(
   });
 }
 
+// ---------- Bulk import (one-time migration from the Google Sheet) ----------
+
+export type ImportTask = { title: string; urgency: "high" | "low"; owner?: string | null };
+export type ImportContact = { name: string; phone?: string | null; role?: string | null };
+export type ImportProject = {
+  name: string;
+  client_contact?: string | null;
+  event_date?: string | null;
+  event_date_end?: string | null;
+  hours?: string | null;
+  headcount?: string | null;
+  location?: string | null;
+  team_present?: string | null;
+  proposal_owner?: string | null;
+  general_notes?: string | null;
+  contacts?: ImportContact[];
+  tasks?: ImportTask[];
+};
+
+/** Bulk-creates projects (with contacts + tasks) from a parsed import payload. Employee owner
+ * names in tasks are matched by first-name against existing employees; unmatched names are left
+ * unassigned. Returns how many of each entity were created. */
+export async function bulkImportProjects(projects: ImportProject[]) {
+  const { rows: employees } = await query<{ id: string; name: string }>(
+    "SELECT id, name FROM employees"
+  );
+  const byName = new Map(employees.map((e) => [e.name, e.id]));
+
+  let projectCount = 0;
+  let contactCount = 0;
+  let taskCount = 0;
+
+  for (const p of projects) {
+    const projectId = await createProject({
+      name: p.name,
+      client_contact: p.client_contact ?? null,
+      event_date: p.event_date ?? null,
+      event_date_end: p.event_date_end ?? null,
+      hours: p.hours ?? null,
+      headcount: p.headcount ?? null,
+      location: p.location ?? null,
+      team_present: p.team_present ?? null,
+      proposal_owner: p.proposal_owner ?? null,
+      general_notes: p.general_notes ?? null,
+    });
+    projectCount++;
+
+    for (const c of p.contacts ?? []) {
+      if (!c.name) continue;
+      await addContact(projectId, c.name, c.phone ?? null, c.role ?? null);
+      contactCount++;
+    }
+
+    for (const t of p.tasks ?? []) {
+      if (!t.title) continue;
+      const ownerEmployeeId = t.owner ? byName.get(t.owner) ?? null : null;
+      await createTask({
+        projectId,
+        title: t.title,
+        urgency: t.urgency,
+        ownerEmployeeId,
+        actorEmployeeId: null,
+      });
+      taskCount++;
+    }
+  }
+
+  return { projectCount, contactCount, taskCount };
+}
+
 // ---------- Team-wide task view ----------
 
 /** All non-archived tasks across every project, with project + owner names for the team view. */
