@@ -39,7 +39,11 @@ export type Task = {
   updated_at: Date;
 };
 
-export type TaskWithProject = Task & { project_name: string; owner_name: string | null };
+export type TaskWithProject = Task & {
+  project_name: string;
+  project_event_date?: string | null;
+  owner_name: string | null;
+};
 
 export type TaskTag = {
   id: string;
@@ -81,6 +85,38 @@ export async function listArchivedProjects(): Promise<Project[]> {
 export async function getProject(projectId: string): Promise<Project | null> {
   const { rows } = await query<Project>("SELECT * FROM projects WHERE id = $1", [projectId]);
   return rows[0] ?? null;
+}
+
+export type ProjectTaskCounts = { high: number; low: number; openTotal: number; taskTotal: number };
+
+/** Open (non-done) high/low task counts + totals for every active project, in one query —
+ * avoids fetching each project's full task list just to count them. */
+export async function listProjectTaskCounts(): Promise<Record<string, ProjectTaskCounts>> {
+  const { rows } = await query<{
+    project_id: string;
+    high: number;
+    low: number;
+    open_total: number;
+    task_total: number;
+  }>(
+    `SELECT project_id,
+            COUNT(*) FILTER (WHERE status != 'done' AND urgency = 'high')::int as high,
+            COUNT(*) FILTER (WHERE status != 'done' AND urgency = 'low')::int as low,
+            COUNT(*) FILTER (WHERE status != 'done')::int as open_total,
+            COUNT(*)::int as task_total
+     FROM tasks
+     GROUP BY project_id`
+  );
+  const byProject: Record<string, ProjectTaskCounts> = {};
+  for (const r of rows) {
+    byProject[r.project_id] = {
+      high: r.high,
+      low: r.low,
+      openTotal: r.open_total,
+      taskTotal: r.task_total,
+    };
+  }
+  return byProject;
 }
 
 export async function createProject(input: Partial<Project> & { name: string }): Promise<string> {
@@ -278,6 +314,24 @@ export async function listTaskTags(taskId: string): Promise<TaskTag[]> {
   return rows;
 }
 
+/** Same as listTaskTags but for many tasks in one round trip — avoids an N+1 query when
+ * rendering a page full of task cards (project detail, my-tasks). */
+export async function listTaskTagsForTasks(taskIds: string[]): Promise<Record<string, TaskTag[]>> {
+  if (taskIds.length === 0) return {};
+  const { rows } = await query<TaskTag>(
+    `SELECT tt.*, e.name as employee_name
+     FROM task_tags tt JOIN employees e ON e.id = tt.employee_id
+     WHERE tt.task_id = ANY($1) ORDER BY tt.created_at`,
+    [taskIds]
+  );
+  const byTask: Record<string, TaskTag[]> = {};
+  for (const id of taskIds) byTask[id] = [];
+  for (const row of rows) {
+    (byTask[row.task_id] ??= []).push(row);
+  }
+  return byTask;
+}
+
 export async function tagEmployeeOnTask(
   taskId: string,
   employeeId: string,
@@ -437,15 +491,16 @@ export async function listAllOpenTasks(): Promise<TaskWithProject[]> {
 }
 
 /** All tasks (any status) owned by one employee across active projects, for their personal
- * "המשימות שלי" board, grouped by project in the UI. */
+ * "המשימות שלי" board, grouped by project in the UI — ordered soonest event date first so the
+ * board reads in the same order as the projects list. */
 export async function listTasksForEmployee(employeeId: string): Promise<TaskWithProject[]> {
   const { rows } = await query<TaskWithProject>(
-    `SELECT t.*, p.name as project_name, e.name as owner_name
+    `SELECT t.*, p.name as project_name, p.event_date as project_event_date, e.name as owner_name
      FROM tasks t
      JOIN projects p ON p.id = t.project_id
      LEFT JOIN employees e ON e.id = t.owner_employee_id
      WHERE t.owner_employee_id = $1 AND p.archived = FALSE
-     ORDER BY p.name, t.due_date NULLS LAST, t.created_at DESC`,
+     ORDER BY p.event_date ASC NULLS LAST, p.name, t.due_date NULLS LAST, t.created_at DESC`,
     [employeeId]
   );
   return rows;
