@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentEmployee } from "@/lib/auth";
 import { listArchivedProjects } from "@/lib/data";
 import { unarchiveProjectAction } from "@/app/actions";
+import { formatEventRange } from "@/lib/dates";
 
 export default async function ArchivedProjectsPage() {
   const me = await getCurrentEmployee();
@@ -22,10 +23,7 @@ export default async function ArchivedProjectsPage() {
       <div className="grid gap-3">
         {projects.length === 0 && <p className="text-slate-500">אין עדיין פרויקטים בארכיון.</p>}
         {projects.map((p) => {
-          const dateLabel =
-            p.event_date && p.event_date_end && p.event_date_end !== p.event_date
-              ? `${p.event_date} – ${p.event_date_end}`
-              : p.event_date;
+          const dateLabel = formatEventRange(p.event_date, p.event_date_end);
           const unarchiveThis = unarchiveProjectAction.bind(null, p.id);
           return (
             <div key={p.id} className="card flex items-center justify-between opacity-80">

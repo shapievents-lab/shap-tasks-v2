@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentEmployee } from "@/lib/auth";
-import { listProjects, listTasksByProject } from "@/lib/data";
+import { listProjects, listProjectTaskCounts } from "@/lib/data";
 import { createProjectAction, archiveProjectQuickAction } from "@/app/actions";
+import { formatEventRange } from "@/lib/dates";
 
 export default async function ProjectsPage() {
   const me = await getCurrentEmployee();
   if (!me) redirect("/login");
 
-  const projects = await listProjects();
-  const taskLists = await Promise.all(projects.map((p) => listTasksByProject(p.id)));
+  const [projects, taskCounts] = await Promise.all([listProjects(), listProjectTaskCounts()]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -24,18 +24,20 @@ export default async function ProjectsPage() {
         {projects.length === 0 && (
           <p className="text-slate-500">אין עדיין פרויקטים. אפשר להוסיף אחד למטה.</p>
         )}
-        {projects.map((p, idx) => {
-          const tasks = taskLists[idx];
-          const open = tasks.filter((t) => t.status !== "done");
-          const high = open.filter((t) => t.urgency === "high").length;
-          const low = open.filter((t) => t.urgency === "low").length;
-          const dateLabel =
-            p.event_date && p.event_date_end && p.event_date_end !== p.event_date
-              ? `${p.event_date} – ${p.event_date_end}`
-              : p.event_date;
+        {projects.map((p) => {
+          const counts = taskCounts[p.id];
+          const high = counts?.high ?? 0;
+          const low = counts?.low ?? 0;
+          const openTotal = counts?.openTotal ?? 0;
+          const taskTotal = counts?.taskTotal ?? 0;
+          const dateLabel = formatEventRange(p.event_date, p.event_date_end);
           const archiveThisQuick = archiveProjectQuickAction.bind(null, p.id);
+          const accent = high > 0 ? "card-accent-high" : openTotal === 0 && taskTotal > 0 ? "card-accent-done" : "";
           return (
-            <div key={p.id} className="card flex items-center justify-between hover:border-indigo-400 transition">
+            <div
+              key={p.id}
+              className={`card flex items-center justify-between hover:border-indigo-400 transition ${accent}`}
+            >
               <Link href={`/projects/${p.id}`} className="flex-1">
                 <div className="font-semibold">{p.name}</div>
                 <div className="text-sm text-slate-500">
@@ -46,9 +48,7 @@ export default async function ProjectsPage() {
               <div className="flex items-center gap-2">
                 {high > 0 && <span className="badge badge-high">{high} דחוף</span>}
                 {low > 0 && <span className="badge badge-low">{low} רגיל</span>}
-                {open.length === 0 && tasks.length > 0 && (
-                  <span className="badge badge-done">הכל הושלם</span>
-                )}
+                {openTotal === 0 && taskTotal > 0 && <span className="badge badge-done">הכל הושלם</span>}
                 {me.role === "owner" && (
                   <form action={archiveThisQuick}>
                     <button className="btn btn-secondary btn-sm" type="submit">
@@ -74,12 +74,12 @@ export default async function ProjectsPage() {
             <input name="client_contact" className="input mt-1" />
           </label>
           <label className="text-sm">
-            תאריך התחלה
-            <input name="event_date" type="date" className="input mt-1" />
+            תאריך התחלה (מלא: 2026-11-05, או רק חודש: 2026-11)
+            <input name="event_date" type="text" placeholder="2026-11-05 או 2026-11" className="input mt-1" dir="ltr" />
           </label>
           <label className="text-sm">
             תאריך סיום (אם מדובר ביותר מיום אחד)
-            <input name="event_date_end" type="date" className="input mt-1" />
+            <input name="event_date_end" type="text" placeholder="2026-11-07" className="input mt-1" dir="ltr" />
           </label>
           <label className="text-sm">
             שעות
