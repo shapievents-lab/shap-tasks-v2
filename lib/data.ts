@@ -1,0 +1,343 @@
+import { query, id as newId } from "./db";
+
+export type Project = {
+  id: string;
+  name: string;
+  client_contact: string | null;
+  event_date: string | null;
+  hours: string | null;
+  headcount: string | null;
+  location: string | null;
+  team_present: string | null;
+  proposal_owner: string | null;
+  general_notes: string | null;
+  archived: boolean;
+  created_at: Date;
+};
+
+export type Contact = {
+  id: string;
+  project_id: string;
+  name: string;
+  phone: string | null;
+  role: string | null;
+};
+
+export type Task = {
+  id: string;
+  project_id: string;
+  title: string;
+  urgency: "high" | "low";
+  status: "open" | "stuck" | "done";
+  responsible_contact: string | null;
+  owner_employee_id: string | null;
+  notes: string | null;
+  links: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type TaskTag = {
+  id: string;
+  task_id: string;
+  employee_id: string;
+  employee_name?: string;
+  tagged_by: string | null;
+  note: string | null;
+  created_at: Date;
+};
+
+// ---------- Projects ----------
+
+export async function listProjects(includeArchived = false): Promise<Project[]> {
+  const sql = includeArchived
+    ? "SELECT * FROM projects ORDER BY event_date DESC NULLS LAST, created_at DESC"
+    : "SELECT * FROM projects WHERE archived = FALSE ORDER BY event_date DESC NULLS LAST, created_at DESC";
+  const { rows } = await query<Project>(sql);
+  return rows;
+}
+
+export async function getProject(projectId: string): Promise<Project | null> {
+  const { rows } = await query<Project>("SELECT * FROM projects WHERE id = $1", [projectId]);
+  return rows[0] ?? null;
+}
+
+export async function createProject(input: Partial<Project> & { name: string }): Promise<string> {
+  const id = newId();
+  await query(
+    `INSERT INTO projects
+      (id, name, client_contact, event_date, hours, headcount, location, team_present, proposal_owner, general_notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [
+      id,
+      input.name,
+      input.client_contact ?? null,
+      input.event_date ?? null,
+      input.hours ?? null,
+      input.headcount ?? null,
+      input.location ?? null,
+      input.team_present ?? null,
+      input.proposal_owner ?? null,
+      input.general_notes ?? null,
+    ]
+  );
+  return id;
+}
+
+export async function updateProject(projectId: string, input: Partial<Project>) {
+  const fields = [
+    "name",
+    "client_contact",
+    "event_date",
+    "hours",
+    "headcount",
+    "location",
+    "team_present",
+    "proposal_owner",
+    "general_notes",
+    "archived",
+  ] as const;
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  let i = 1;
+  for (const f of fields) {
+    if (f in input) {
+      sets.push(`${f} = $${i}`);
+      values.push((input as Record<string, unknown>)[f]);
+      i++;
+    }
+  }
+  if (!sets.length) return;
+  values.push(projectId);
+  await query(`UPDATE projects SET ${sets.join(", ")} WHERE id = $${i}`, values);
+}
+
+// ---------- Contacts ----------
+
+export async function listContacts(projectId: string): Promise<Contact[]> {
+  const { rows } = await query<Contact>(
+    "SELECT * FROM contacts WHERE project_id = $1 ORDER BY created_at",
+    [projectId]
+  );
+  return rows;
+}
+
+export async function addContact(
+  projectId: string,
+  name: string,
+  phone: string | null,
+  role: string | null
+) {
+  await query(
+    "INSERT INTO contacts (id, project_id, name, phone, role) VALUES ($1, $2, $3, $4, $5)",
+    [newId(), projectId, name, phone, role]
+  );
+}
+
+// ---------- Tasks ----------
+
+export async function listTasksByProject(projectId: string): Promise<Task[]> {
+  const { rows } = await query<Task>(
+    "SELECT * FROM tasks WHERE project_id = $1 ORDER BY created_at DESC",
+    [projectId]
+  );
+  return rows;
+}
+
+export async function getTask(taskId: string): Promise<Task | null> {
+  const { rows } = await query<Task>("SELECT * FROM tasks WHERE id = $1", [taskId]);
+  return rows[0] ?? null;
+}
+
+export async function createTask(input: {
+  projectId: string;
+  title: string;
+  urgency: "high" | "low";
+  responsibleContact?: string | null;
+  ownerEmployeeId?: string | null;
+  notes?: string | null;
+  links?: { label: string; url: string }[];
+  actorEmployeeId?: string | null;
+}): Promise<string> {
+  const id = newId();
+  await query(
+    `INSERT INTO tasks
+      (id, project_id, title, urgency, status, responsible_contact, owner_employee_id, notes, links)
+     VALUES ($1, $2, $3, $4, 'open', $5, $6, $7, $8)`,
+    [
+      id,
+      input.projectId,
+      input.title,
+      input.urgency,
+      input.responsibleContact ?? null,
+      input.ownerEmployeeId ?? null,
+      input.notes ?? null,
+      input.links ? JSON.stringify(input.links) : null,
+    ]
+  );
+  await logActivity({
+    taskId: id,
+    projectId: input.projectId,
+    employeeId: input.actorEmployeeId ?? null,
+    action: "created",
+    detail: input.title,
+  });
+  return id;
+}
+
+export async function updateTaskStatus(
+  taskId: string,
+  status: "open" | "stuck" | "done",
+  actorEmployeeId: string | null
+) {
+  const task = await getTask(taskId);
+  if (!task) return;
+  await query("UPDATE tasks SET status = $1, updated_at = now() WHERE id = $2", [
+    status,
+    taskId,
+  ]);
+  await logActivity({
+    taskId,
+    projectId: task.project_id,
+    employeeId: actorEmployeeId,
+    action: "status_changed",
+    detail: status,
+  });
+}
+
+export async function addTaskNote(taskId: string, note: string, actorEmployeeId: string | null) {
+  const task = await getTask(taskId);
+  if (!task) return;
+  const combined = task.notes ? `${task.notes}\n${note}` : note;
+  await query("UPDATE tasks SET notes = $1, updated_at = now() WHERE id = $2", [
+    combined,
+    taskId,
+  ]);
+  await logActivity({
+    taskId,
+    projectId: task.project_id,
+    employeeId: actorEmployeeId,
+    action: "note",
+    detail: note,
+  });
+}
+
+export async function listTaskTags(taskId: string): Promise<TaskTag[]> {
+  const { rows } = await query<TaskTag>(
+    `SELECT tt.*, e.name as employee_name
+     FROM task_tags tt JOIN employees e ON e.id = tt.employee_id
+     WHERE tt.task_id = $1 ORDER BY tt.created_at`,
+    [taskId]
+  );
+  return rows;
+}
+
+export async function tagEmployeeOnTask(
+  taskId: string,
+  employeeId: string,
+  taggedByEmployeeId: string | null,
+  note: string | null
+) {
+  const task = await getTask(taskId);
+  if (!task) return;
+  await query(
+    "INSERT INTO task_tags (id, task_id, employee_id, tagged_by, note) VALUES ($1, $2, $3, $4, $5)",
+    [newId(), taskId, employeeId, taggedByEmployeeId, note]
+  );
+  await logActivity({
+    taskId,
+    projectId: task.project_id,
+    employeeId: taggedByEmployeeId,
+    action: "tagged",
+    detail: employeeId,
+  });
+}
+
+// ---------- Activity / dashboard ----------
+
+export async function logActivity(params: {
+  taskId?: string | null;
+  projectId?: string | null;
+  employeeId?: string | null;
+  action: string;
+  detail?: string | null;
+}) {
+  await query(
+    `INSERT INTO activity_log (id, task_id, project_id, employee_id, action, detail)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      newId(),
+      params.taskId ?? null,
+      params.projectId ?? null,
+      params.employeeId ?? null,
+      params.action,
+      params.detail ?? null,
+    ]
+  );
+}
+
+export type ActivityRow = {
+  id: string;
+  task_id: string | null;
+  project_id: string | null;
+  employee_id: string | null;
+  employee_name: string | null;
+  project_name: string | null;
+  task_title: string | null;
+  action: string;
+  detail: string | null;
+  created_at: Date;
+};
+
+export async function listActivitySince(since: Date): Promise<ActivityRow[]> {
+  const { rows } = await query<ActivityRow>(
+    `SELECT al.*, e.name as employee_name, p.name as project_name, t.title as task_title
+     FROM activity_log al
+     LEFT JOIN employees e ON e.id = al.employee_id
+     LEFT JOIN projects p ON p.id = al.project_id
+     LEFT JOIN tasks t ON t.id = al.task_id
+     WHERE al.created_at >= $1
+     ORDER BY al.created_at DESC`,
+    [since]
+  );
+  return rows;
+}
+
+// ---------- Notifications ----------
+
+export type NotificationRow = {
+  id: string;
+  employee_id: string;
+  task_id: string | null;
+  message: string;
+  read: boolean;
+  whatsapp_sent: boolean;
+  created_at: Date;
+  project_id?: string | null;
+};
+
+export async function listNotifications(employeeId: string): Promise<NotificationRow[]> {
+  const { rows } = await query<NotificationRow>(
+    `SELECT n.*, t.project_id as project_id
+     FROM notifications n LEFT JOIN tasks t ON t.id = n.task_id
+     WHERE n.employee_id = $1 ORDER BY n.created_at DESC LIMIT 50`,
+    [employeeId]
+  );
+  return rows;
+}
+
+export async function unreadNotificationCount(employeeId: string): Promise<number> {
+  const { rows } = await query<{ c: number }>(
+    "SELECT COUNT(*)::int as c FROM notifications WHERE employee_id = $1 AND read = FALSE",
+    [employeeId]
+  );
+  return rows[0]?.c ?? 0;
+}
+
+export async function markNotificationRead(notificationId: string) {
+  await query("UPDATE notifications SET read = TRUE WHERE id = $1", [notificationId]);
+}
+
+export async function markAllNotificationsRead(employeeId: string) {
+  await query("UPDATE notifications SET read = TRUE WHERE employee_id = $1", [employeeId]);
+}
