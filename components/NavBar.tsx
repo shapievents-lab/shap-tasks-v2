@@ -26,9 +26,17 @@ export default function NavBar({
           <Link href="/team" className="text-sm text-slate-600 hover:text-slate-900">
             משימות הצוות
           </Link>
+          <Link href="/louis" className="text-sm text-slate-600 hover:text-slate-900">
+            לואי
+          </Link>
           {role === "owner" && (
             <Link href="/owner" className="text-sm text-slate-600 hover:text-slate-900">
               דשבורד בעלים
+            </Link>
+          )}
+          {role === "owner" && (
+            <Link href="/owner/louis" className="text-sm text-slate-600 hover:text-slate-900">
+              שיחות לואי
             </Link>
           )}
           <Link href="/notifications" className="text-sm text-slate-600 hover:text-slate-900 relative">

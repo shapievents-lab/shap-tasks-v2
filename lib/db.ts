@@ -130,6 +130,51 @@ async function migrate() {
     ALTER TABLE projects ADD COLUMN IF NOT EXISTS custom_sort_order INTEGER;
 
     CREATE INDEX IF NOT EXISTS idx_tags_employee_open ON task_tags(employee_id) WHERE resolved_at IS NULL;
+
+    -- Louis (AI assistant) knowledge base + conversations. "source" is a free-text
+    -- tag (e.g. 'manual', 'gdrive') so future knowledge sources can be added without
+    -- changing this schema.
+    CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      source_id TEXT UNIQUE,
+      title TEXT,
+      path TEXT,
+      content_hash TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS document_chunks (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      chunk_index INT NOT NULL,
+      content TEXT NOT NULL,
+      tsv TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED,
+      sensitivity TEXT NOT NULL DEFAULT 'normal'
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON document_chunks USING GIN(tsv);
+    CREATE INDEX IF NOT EXISTS idx_chunks_document ON document_chunks(document_id);
+
+    CREATE TABLE IF NOT EXISTS louis_conversations (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      title TEXT,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_louis_conv_employee ON louis_conversations(employee_id, started_at DESC);
+
+    CREATE TABLE IF NOT EXISTS louis_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL REFERENCES louis_conversations(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      flagged BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_louis_msg_conversation ON louis_messages(conversation_id, created_at);
   `);
 
   const { rows } = await pool.query<{ c: number }>("SELECT COUNT(*)::int as c FROM employees");
