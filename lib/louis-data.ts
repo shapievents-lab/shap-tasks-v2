@@ -28,6 +28,60 @@ export type RetrievedChunk = {
   path: string | null;
 };
 
+export type DocumentSummary = {
+  id: string;
+  source: string;
+  title: string | null;
+  path: string | null;
+  updated_at: Date;
+  chunk_count: number;
+};
+
+export type DocumentDetail = {
+  id: string;
+  source: string;
+  title: string | null;
+  path: string | null;
+  updated_at: Date;
+};
+
+export type DocumentChunkRow = {
+  id: string;
+  chunk_index: number;
+  content: string;
+  sensitivity: string;
+};
+
+/** Owner-only debugging view: what's actually been ingested so far. */
+export async function listDocuments() {
+  const { rows } = await query<DocumentSummary>(
+    `SELECT d.id, d.source, d.title, d.path, d.updated_at, count(dc.id)::int as chunk_count
+     FROM documents d
+     LEFT JOIN document_chunks dc ON dc.document_id = d.id
+     GROUP BY d.id, d.source, d.title, d.path, d.updated_at
+     ORDER BY d.updated_at DESC`
+  );
+  return rows;
+}
+
+export async function getDocument(documentId: string) {
+  const { rows } = await query<DocumentDetail>(
+    `SELECT id, source, title, path, updated_at FROM documents WHERE id = $1`,
+    [documentId]
+  );
+  return rows[0] ?? null;
+}
+
+/** Owner-only debugging view: the exact extracted text stored for one document, chunk by chunk. */
+export async function getDocumentChunks(documentId: string) {
+  const { rows } = await query<DocumentChunkRow>(
+    `SELECT id, chunk_index, content, sensitivity FROM document_chunks
+     WHERE document_id = $1 ORDER BY chunk_index ASC`,
+    [documentId]
+  );
+  return rows;
+}
+
 export async function createConversation(employeeId: string, title: string | null) {
   const id = newId();
   await query(`INSERT INTO louis_conversations (id, employee_id, title) VALUES ($1, $2, $3)`, [
