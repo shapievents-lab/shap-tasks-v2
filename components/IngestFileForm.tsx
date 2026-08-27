@@ -17,8 +17,16 @@ export default function IngestFileForm() {
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-3">
       <div>
-        <label className="text-sm text-slate-600 block mb-1">קובץ (PDF / DOCX / TXT)</label>
-        <input type="file" name="file" accept=".pdf,.docx,.txt" required className="input" />
+        <label className="text-sm text-slate-600 block mb-1">
+          קובץ (PDF / DOCX / PPTX / XLSX / TXT / CSV)
+        </label>
+        <input
+          type="file"
+          name="file"
+          accept=".pdf,.docx,.pptx,.xlsx,.txt,.csv"
+          required
+          className="input"
+        />
       </div>
       <div>
         <label className="text-sm text-slate-600 block mb-1">כותרת (אופציונלי)</label>
