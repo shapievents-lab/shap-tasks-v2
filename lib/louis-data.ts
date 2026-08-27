@@ -162,12 +162,44 @@ export async function addMessage(
   return id;
 }
 
+// Single-letter Hebrew prefixes (ו/ה/ב/ל/כ/מ/ש — "and/the/in/to/as/from/that") that
+// attach directly to the following word with no separator. Postgres's 'simple' text
+// search config has no Hebrew morphology, so "הבריכה" and "בריכה" are unrelated
+// lexemes to it — we widen the query with the de-prefixed form as a fallback.
+const HEBREW_PREFIXES = ["ו", "ה", "ב", "ל", "כ", "מ", "ש"];
+
+/**
+ * Expands a natural-language question into an OR-joined websearch_to_tsquery input:
+ * matching ANY significant word (ranked by relevance) instead of requiring every
+ * word to appear, since filler words ("באיזו", "של", "מתי"...) in a question don't
+ * literally appear in the source documents.
+ */
+function expandSearchTerms(questionText: string): string {
+  const words = questionText
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 2);
+
+  const terms = new Set<string>();
+  for (const w of words) {
+    terms.add(w);
+    if (HEBREW_PREFIXES.includes(w[0]) && w.length >= 3) {
+      terms.add(w.slice(1));
+    }
+  }
+  return [...terms].join(" or ");
+}
+
 /**
  * Full-text search over document_chunks for retrieval-augmented answers. The
  * sensitivity filter is enforced here in SQL — never relaxed to a prompt-only
  * instruction — so restricted chunks can never reach the model.
  */
 export async function searchChunks(questionText: string, limit = 8) {
+  const expanded = expandSearchTerms(questionText);
+  if (!expanded) return [];
+
   const { rows } = await query<RetrievedChunk>(
     `SELECT dc.id, dc.document_id, dc.content, d.title, d.path
      FROM document_chunks dc
@@ -176,7 +208,7 @@ export async function searchChunks(questionText: string, limit = 8) {
        AND dc.tsv @@ websearch_to_tsquery('simple', $1)
      ORDER BY ts_rank(dc.tsv, websearch_to_tsquery('simple', $1)) DESC
      LIMIT $2`,
-    [questionText, limit]
+    [expanded, limit]
   );
   return rows;
 }
