@@ -16,6 +16,8 @@ import {
   updateContact,
   deleteContact,
   createTask,
+  updateTask,
+  deleteTask,
   updateTaskStatus,
   addTaskNote,
   tagEmployeeOnTask,
@@ -159,6 +161,42 @@ export async function createTaskAction(projectId: string, formData: FormData) {
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/team");
   revalidatePath("/my-tasks");
+}
+
+export async function updateTaskAction(taskId: string, formData: FormData) {
+  const me = await getCurrentEmployee();
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return;
+  const urgency = String(formData.get("urgency") ?? "high") as "high" | "low";
+  await updateTask(
+    taskId,
+    {
+      title,
+      urgency,
+      responsibleContact: str(formData.get("responsible_contact")),
+      dueDate: str(formData.get("due_date")),
+      notes: str(formData.get("notes")),
+    },
+    me?.id ?? null
+  );
+  const task = await getTask(taskId);
+  if (task) {
+    revalidatePath(`/projects/${task.project_id}`);
+    revalidatePath("/team");
+    revalidatePath("/my-tasks");
+  }
+}
+
+export async function deleteTaskAction(taskId: string) {
+  const me = await getCurrentEmployee();
+  const deleted = await deleteTask(taskId, me?.id ?? null);
+  if (deleted) {
+    const projectId = deleted.project_id;
+    revalidatePath(`/projects/${projectId}`);
+    revalidatePath("/team");
+    revalidatePath("/my-tasks");
+    revalidatePath("/owner");
+  }
 }
 
 export async function updateTaskStatusAction(taskId: string, status: "open" | "stuck" | "done") {

@@ -285,6 +285,58 @@ export async function createTask(input: {
   return id;
 }
 
+/** Edits the task's own content (title/urgency/contact/due date/notes) — as opposed to
+ * updateTaskStatus (open/stuck/done) or setTaskOwner (who's responsible), which stay separate. */
+export async function updateTask(
+  taskId: string,
+  input: {
+    title: string;
+    urgency: "high" | "low";
+    responsibleContact?: string | null;
+    dueDate?: string | null;
+    notes?: string | null;
+  },
+  actorEmployeeId: string | null
+) {
+  const task = await getTask(taskId);
+  if (!task) return;
+  await query(
+    `UPDATE tasks
+     SET title = $1, urgency = $2, responsible_contact = $3, due_date = $4, notes = $5, updated_at = now()
+     WHERE id = $6`,
+    [
+      input.title,
+      input.urgency,
+      input.responsibleContact ?? null,
+      input.dueDate ?? null,
+      input.notes ?? null,
+      taskId,
+    ]
+  );
+  await logActivity({
+    taskId,
+    projectId: task.project_id,
+    employeeId: actorEmployeeId,
+    action: "edited",
+    detail: input.title,
+  });
+}
+
+/** Permanently deletes a task (and, via ON DELETE CASCADE, its tags/notifications). Logged
+ * against the project rather than the task, since the task row is gone. */
+export async function deleteTask(taskId: string, actorEmployeeId: string | null) {
+  const task = await getTask(taskId);
+  if (!task) return null;
+  await query("DELETE FROM tasks WHERE id = $1", [taskId]);
+  await logActivity({
+    projectId: task.project_id,
+    employeeId: actorEmployeeId,
+    action: "deleted",
+    detail: task.title,
+  });
+  return task;
+}
+
 export async function updateTaskStatus(
   taskId: string,
   status: "open" | "stuck" | "done",
