@@ -5,10 +5,13 @@ export default function NavBar({
   name,
   role,
   unread,
+  pendingCards,
 }: {
   name: string;
   role: string;
   unread: number;
+  /** null = this user doesn't review task-distributor cards (only Sher does). */
+  pendingCards: number | null;
 }) {
   return (
     <header className="border-b bg-white">
@@ -37,6 +40,16 @@ export default function NavBar({
           {role === "owner" && (
             <Link href="/owner/louis" className="text-sm text-slate-600 hover:text-slate-900">
               שיחות לואי
+            </Link>
+          )}
+          {pendingCards !== null && (
+            <Link href="/agent-cards" className="text-sm text-slate-600 hover:text-slate-900 relative">
+              כרטיסים לאישור
+              {pendingCards > 0 && (
+                <span className="absolute -top-2 -right-3 bg-indigo-500 text-white rounded-full text-[10px] px-1.5 py-0.5 leading-none">
+                  {pendingCards}
+                </span>
+              )}
             </Link>
           )}
           <Link href="/notifications" className="text-sm text-slate-600 hover:text-slate-900 relative">

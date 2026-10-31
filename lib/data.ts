@@ -637,6 +637,7 @@ export type NotificationRow = {
   whatsapp_sent: boolean;
   created_at: Date;
   project_id?: string | null;
+  link?: string | null;
 };
 
 export async function listNotifications(employeeId: string): Promise<NotificationRow[]> {

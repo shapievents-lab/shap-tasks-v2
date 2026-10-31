@@ -42,6 +42,11 @@ export default async function NotificationsPage() {
                       לפרויקט
                     </Link>
                   )}
+                  {n.link && (
+                    <Link href={n.link} className="text-indigo-600 underline">
+                      לפתיחה
+                    </Link>
+                  )}
                   {!n.whatsapp_sent && (
                     <span title="וואטסאפ עוד לא מחובר">📱 לא נשלח בוואטסאפ</span>
                   )}

@@ -175,6 +175,31 @@ async function migrate() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_louis_msg_conversation ON louis_messages(conversation_id, created_at);
+
+    -- Task distributor (external automation): every conversation it processed, keyed by its
+    -- source id so it never processes one twice. "pending" cards wait for the reviewer;
+    -- "irrelevant"/"failed" rows exist only to remember the conversation was handled.
+    -- proposed_card is what the agent suggested, final_card what the reviewer approved — the
+    -- difference is fed back to improve the agent.
+    CREATE TABLE IF NOT EXISTS agent_cards (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      source_id TEXT NOT NULL UNIQUE,
+      title TEXT,
+      conversation_at TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reason TEXT,
+      proposed_card JSONB,
+      final_card JSONB,
+      apply_log JSONB,
+      decided_by TEXT REFERENCES employees(id),
+      decided_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_cards_status ON agent_cards(status, created_at DESC);
+
+    ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link TEXT;
   `);
 
   const { rows } = await pool.query<{ c: number }>("SELECT COUNT(*)::int as c FROM employees");

@@ -14,12 +14,13 @@ export async function notifyEmployee(params: {
   taskId?: string;
   message: string;
   phone?: string | null;
+  link?: string | null;
 }) {
   const notifId = id();
   await query(
-    `INSERT INTO notifications (id, employee_id, task_id, message, read, whatsapp_sent)
-     VALUES ($1, $2, $3, $4, FALSE, FALSE)`,
-    [notifId, params.employeeId, params.taskId ?? null, params.message]
+    `INSERT INTO notifications (id, employee_id, task_id, message, read, whatsapp_sent, link)
+     VALUES ($1, $2, $3, $4, FALSE, FALSE, $5)`,
+    [notifId, params.employeeId, params.taskId ?? null, params.message, params.link ?? null]
   );
 
   const sent = await sendWhatsApp(params.phone, params.message);
