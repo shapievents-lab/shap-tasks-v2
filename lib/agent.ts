@@ -105,7 +105,7 @@ export type AgentCardRow = {
 const SUMMARY_TASK_TITLE = "סיכום שיחה";
 
 export async function getAgentSnapshot() {
-  const [employees, projects, contacts, tasks, processed, notes] = await Promise.all([
+  const [employees, projects, contacts, tasks, processed, notes, waGroups] = await Promise.all([
     query<{ id: string; name: string }>("SELECT id, name FROM employees ORDER BY name"),
     // Recently archived projects stay in, so a wrap-up meeting after an event still matches.
     query(
@@ -140,6 +140,11 @@ export async function getAgentSnapshot() {
          AND NOT EXISTS (SELECT 1 FROM agent_cards c WHERE c.source_id = 'note:' || t.id)`,
       [SUMMARY_TASK_TITLE]
     ),
+    // Romi (WhatsApp groups bot): a group is read only after Sher approved its "which project?" card.
+    query<{ source_id: string; project_id: string | null }>(
+      `SELECT source_id, final_card->'segments'->0->>'project_id' AS project_id
+       FROM agent_cards WHERE source = 'whatsapp_join' AND status = 'approved'`
+    ),
   ]);
 
   const byProject = <T extends { project_id: string }>(rows: T[]) => {
@@ -169,6 +174,9 @@ export async function getAgentSnapshot() {
       notes: n.notes,
       updated_at: n.updated_at,
     })),
+    whatsapp_groups: waGroups.rows
+      .filter((g) => g.project_id)
+      .map((g) => ({ group_id: g.source_id.replace(/^wa-join:/, ""), project_id: g.project_id })),
   };
 }
 
@@ -322,6 +330,9 @@ export async function applyCard(
       );
       if (!proj.rows[0]) continue;
       const projectName = proj.rows[0].name;
+      // Keep the project the reviewer chose on the saved card — Romi reads it back to know
+      // which project a WhatsApp group belongs to.
+      card.segments[i] = { ...seg, project_id: projectId };
 
       for (const tc of seg.task_changes ?? []) {
         await applyTaskChange(client, projectId, projectName, tc, employeeId, reviewerId, log);
